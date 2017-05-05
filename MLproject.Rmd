@@ -1,0 +1,102 @@
+##Coursera practical ML project
+by Anders Kramer Knudsen, may 4 2017
+
+
+##Executive summary
+In this assignment I build a machine learning model (random forest) that can predict the exercise class from sensor data using the caret package in R. The data consists of 19622 examples of 5 different training exercises. 
+
+The resulting random forest model captures most of the variation in the data making quite reliable predictions. >99% in a testing set is labeled correctly. Also the actual 20 test cases are all labeled correctly.
+
+##Data processing
+The data for this assignment comes from http://groupware.les.inf.puc-rio.br/har. Here you can also read about what and how it was been collected.
+
+###load data
+```{r}
+library(caret)
+
+setwd("C:/Users/ankkn/Desktop/R/kursus/ProgAssignment8/")
+
+tr_url<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+te_url<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+if(!file.exists("training.csv")){
+     download.file(tr_url, "training.csv")
+}
+if(!file.exists("testing.csv")){
+     download.file(te_url, "testing.csv")
+}
+ 
+training<-read.csv("training.csv",na.strings = c("NA",""))
+testing<-read.csv("testing.csv",na.strings = c("NA",""))
+
+dim(training)
+dim(testing)
+```
+
+
+The training data set contains 19622 observations and 160 variables. The testing set has 20 observations and 160 variables.
+
+###cleaning data
+As there are a lot of columns with many missing data I choose the easy solution and eliminate these. In a real project I would probably try to impute the missing data where it would make sense. As I don't have the domain knowledge to do this I discard the variables instead. I could also just depend on letting the caret package impute the values, but I didn't.
+
+```{r}
+nacol<-colSums(is.na(training))==0
+nacol[1:7]=FALSE
+training<-training[,nacol]
+testing<-testing[,nacol]
+```
+
+In the testing data set the same columns are removed as in the training data set.
+
+Another practical reason not to impute the values is the high number of variables. The model fit is already putting my PC at work. Additional 100 variables would probably just make this even worse.
+
+Also to reduce the data set from further invaluable variables the first 7 variables are deleted.
+
+###data splitting
+The training data set is divided into two groups. One for model training containing 70% of the observations (trainset) and another set for the remaining observations (evalset). For reproducibility the seed is set.
+
+```{r}
+set.seed(1234)
+trainIndex <- createDataPartition(training$classe, p = .7,list = FALSE,times = 1)
+
+trainset <- training[ trainIndex,]
+evalset  <- training[-trainIndex,]
+```
+
+
+##Data analyses
+To build a machine learning model that describe the data I use a random forest from the caret package. This model can handle the high correlation in the input variables by randomly selecting a subset of variables to include in the model.
+
+At the same time there is no need to explicitly use cross validation as this is de facto done with the random forest. In that way the risk of overfitting is minimized.
+
+A drawback is the computation time. Maybe another model could produce results faster. I think a model involving pre-specifying the principal components and build a model on the majority of the variance in the data set would be a plausible suggestion.
+
+###model fit
+```{r}
+fit<-train(classe~.,data=trainset, method="rf")
+fit
+```
+
+The model accurately predicts nearly 99% of the observations in the trainset, using the remaining 52 predictor variables. 
+
+###model evaluation
+The constructed evaluation set is now used to estimate the out of sample error.
+```{r}
+pred<-predict(fit,evalset)
+conf<-confusionMatrix(evalset$classe,pred)
+conf
+```
+
+Prediction accuracy is also high on the evalset. >99% of the observations are classified correct. The rest is out of sample error with a estimated value of 0.53%.
+
+##Results on the testing set
+The predicted outcome on the 20 test cases are displayed below:
+
+```{r}
+a<-predict(fit,testing, type="prob")
+a$PredGroup<-predict(fit, testing)
+a
+```
+
+Also, the probability for the classification to the group is showed, indicating the strength of the prediction.
+
